@@ -1,20 +1,116 @@
-# Reproducible Research: Peer Assessment 1
+## Reproducible Research: Peer Assessment 1
 
 
-## Loading and preprocessing the data
+### Loading and preprocessing the data
+
+This is the R code describing the loading and preprocessing of the data. 
+
+```{r, results="hide"}
+setwd("C:/Users/On Ying/Documents/Coursera/5ReproducibleResearch/ProgAss1")
+initial <- read.csv("activity.csv", nrows=5)
+classes <- sapply(initial, class)
+classes
+activity <- read.csv("activity.csv", colClasses=c("integer", "factor", "integer"))
+activity$date <- strptime(activity$date, "%Y-%m-%d")
+```
+
+### What is mean total number of steps taken per day?
+
+The total number of steps taken per day are shown in the histogram. 
+
+```{r}
+library(plyr)
+totalstepsperday <- ddply(activity, .(date), summarize, sum=sum(steps, na.rm=TRUE))
+barplot(totalstepsperday$sum, main ="Total number of steps taken each day", 
+            ylab ="Number of steps", xlab ="Date")
+```
+
+Here, the mean and median number of steps taken per day are shown.
+
+``` {r}
+stepsperday <- ddply(activity, .(date), summarize, mean=mean(steps, na.rm=TRUE), 
+                     median=median(steps, na.rm=TRUE))
+stepsperday
+```
 
 
+### What is the average daily activity pattern?
 
-## What is mean total number of steps taken per day?
+This is a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+
+```{r}
+stepsperinterval <- ddply(activity, .(interval), summarize, mean=mean(steps, na.rm=T))
+plot(x=stepsperinterval$interval, y=stepsperinterval$mean, type='l', 
+     main="Average number of steps per 5-min interval", xlab="5-min time interval", 
+     ylab="Avg number of steps")
+maxinterval <- stepsperinterval$interval[stepsperinterval$mean == max(stepsperinterval$mean)]
+```
+
+The 5-minute interval (on average across all the days) that contains the maximum number of steps is `r maxinterval`.
+
+### Imputing missing values
+
+```{r}
+missingsteps <- is.na(activity$steps)
+summissing <- sum(missingsteps[missingsteps == TRUE])
+```
+
+The total number of missing values (i.e. the total number of rows with NAs) in the dataset is `r summissing`.
+
+Strategy to fill in missing values: 
+If the steps value is missing for a certain row, the median for that 5 min interval will be filled in. A second dataset was created with the missing data filled in. 
+
+```{r, results="hide"}
+missingstrategy <- ddply(activity, .(interval), summarize, median=median(steps, na.rm=T))
+merged = arrange(join(activity, missingstrategy), interval)
+for (i in 1:length(merged$steps)){
+    if (is.na(merged$steps[i])){
+        merged$steps[i] = merged$median[i]
+    }
+}
+```
+
+Here is the histogram showing the total number of steps taken each day (including the filled in values). 
+
+```{r}
+totalstepsperday2 <- ddply(merged, .(date), summarize, sum=sum(steps, na.rm=TRUE))
+barplot(totalstepsperday2$sum, main ="Total number of steps taken each day", 
+        ylab ="Number of steps", xlab ="Date")
+```
+
+The mean and median total number of steps taken per day (including the filled in values) are reported here.
+
+```{r}
+stepsperday2 <- ddply(merged, .(date), summarize, mean=mean(steps, na.rm=TRUE), 
+                     median=median(steps, na.rm=TRUE))
+stepsperday2
+```
+
+These values differ slightly from the estimates from the first part of the assignment. The impact of imputing missing data on the estimates of the total daily number of steps is minor.
 
 
+### Are there differences in activity patterns between weekdays and weekends?
 
-## What is the average daily activity pattern?
+Yes, there are small differences in activity patterns between the weekday and weekends, see the panel plot below. 
+The  panel plot shows a time series plot of the 5-minute interval (x-axis) 
+and the average number of steps taken, averaged across all week days or weekend days (y-axis). 
 
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+```{r} 
+for (i in 1:length(merged$date)){
+    if (weekdays(merged$date[i])=="Saturday" | weekdays(merged$date[i])=="Sunday")
+    {
+        merged$daytype[i] <- "weekend" 
+    } else {
+        merged$daytype[i] <- "weekday" 
+    }
+}
+temp <- ddply(merged, .(daytype, interval), summarize, mean=mean(steps, na.rm=T))
+attach(merged)
+par(mfrow=c(2,1))
+plot(x=temp$interval[temp$daytype=="weekday"], y=temp$mean[temp$daytype=="weekday"], type='l', 
+     main="Average number of steps per 5-min interval (weekdays)", xlab="5-min time interval", 
+     ylab="Avg number of steps")
+plot(x=temp$interval[temp$daytype=="weekend"], y=temp$mean[temp$daytype=="weekend"], type='l', 
+     main="Average number of steps per 5-min interval (weekends)", xlab="5-min time interval", 
+     ylab="Avg number of steps")
+```
